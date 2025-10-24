@@ -3,6 +3,7 @@ use crate::{DatabaseManager, FunctionInfo, MacroInfo};
 use anstream::stdout;
 use anyhow::Result;
 use owo_colors::OwoColorize as _;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::io::Write;
 
@@ -126,8 +127,8 @@ async fn build_reverse_callchain_with_git(
 }
 
 fn build_callchain_recursive_sync(
-    function_map: &HashMap<String, FunctionInfo>,
-    macro_map: &HashMap<String, MacroInfo>,
+    function_map: &FxHashMap<String, FunctionInfo>,
+    macro_map: &FxHashMap<String, MacroInfo>,
     call_relationships: &CallRelationships,
     func_name: &str,
     remaining_depth: usize,
@@ -235,8 +236,8 @@ pub fn print_callchain_tree(node: &CallNode, indent: usize) {
 }
 
 fn find_paths_bfs(
-    function_map: &HashMap<String, FunctionInfo>,
-    _macro_map: &HashMap<String, MacroInfo>,
+    function_map: &FxHashMap<String, FunctionInfo>,
+    _macro_map: &FxHashMap<String, MacroInfo>,
     call_relationships: &CallRelationships,
     start: &str,
     target: &str,
@@ -972,7 +973,7 @@ pub async fn find_all_paths_to_writer(
 
     // Load only the functions we need for path analysis
     let all_path_functions = {
-        let mut functions_needed = std::collections::HashSet::new();
+        let mut functions_needed = FxHashSet::default();
         // Add entry points
         for entry in &entry_points {
             functions_needed.insert(entry.clone());

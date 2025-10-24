@@ -3,6 +3,7 @@ use anyhow::Result;
 use dashmap::DashMap;
 use gix;
 use gix::bstr::ByteSlice;
+use rustc_hash::FxHashMap;
 
 /// Helper function to resolve a revspec (SHA, tag, etc.) to a commit object
 /// Ensures that tags are properly dereferenced to their target commits
@@ -34,7 +35,7 @@ pub fn resolve_to_commit<'a>(repo: &'a gix::Repository, revspec: &str) -> Result
         .map_err(|_| anyhow::anyhow!("'{}' does not resolve to a commit", revspec))
 }
 use once_cell::sync::Lazy;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::path::{Path, PathBuf};
 
 // Global cache for git file hashes - lock-free concurrent access
@@ -552,9 +553,9 @@ pub fn resolve_files_at_commit<P: AsRef<Path>>(
     repo_path: P,
     commit_sha: &str,
     file_paths: &[String],
-) -> Result<std::collections::HashMap<String, String>> {
+) -> Result<FxHashMap<String, String>> {
     let repo_path = repo_path.as_ref();
-    let mut resolved_hashes = std::collections::HashMap::new();
+    let mut resolved_hashes = FxHashMap::default();
 
     tracing::debug!(
         "Resolving {} file paths at commit {}",
@@ -648,13 +649,13 @@ pub fn is_commit_reachable<P: AsRef<Path>>(
     }
 }
 
-/// Build a HashSet of all commits reachable from the given SHA
+/// Build a FxHashSet of all commits reachable from the given SHA
 /// This is more efficient than checking each commit individually when filtering many commits
 /// Uses git rev-walk to iterate all reachable commits
 pub fn get_reachable_commits<P: AsRef<Path>>(
     repo_path: P,
     from_sha: &str,
-) -> Result<HashSet<String>> {
+) -> Result<FxHashSet<String>> {
     let repo_path = repo_path.as_ref();
 
     match gix::discover(repo_path) {
@@ -666,7 +667,7 @@ pub fn get_reachable_commits<P: AsRef<Path>>(
             // Use rev_walk to get all reachable commits
             let walk = repo.rev_walk([from_id]).all()?;
 
-            let mut reachable = HashSet::new();
+            let mut reachable = FxHashSet::default();
             const MAX_COMMITS: usize = 10000000; // Safety limit
 
             for info in walk {
@@ -936,7 +937,6 @@ pub fn write_diff_and_extract_symbols(
     file_path: &str,
 ) -> (std::fmt::Result, Vec<String>) {
     use similar::{ChangeTag, TextDiff};
-    use std::collections::HashSet;
     use std::fmt::Write;
 
     // Generate a proper diff using the Myers algorithm
@@ -1013,8 +1013,8 @@ pub fn write_diff_and_extract_symbols(
         || file_path.ends_with(".cxx")
     {
         // Collect modified line numbers from both old and new files
-        let mut new_modified_lines = HashSet::new();
-        let mut old_modified_lines = HashSet::new();
+        let mut new_modified_lines = FxHashSet::default();
+        let mut old_modified_lines = FxHashSet::default();
 
         for hunk in diff.unified_diff().context_radius(3).iter_hunks() {
             for change in hunk.iter_changes() {
@@ -1042,7 +1042,7 @@ pub fn write_diff_and_extract_symbols(
         }
 
         // Extract symbols from both old (deletions) and new (additions/modifications)
-        let mut all_symbols = HashSet::new();
+        let mut all_symbols = FxHashSet::default();
         all_symbols.extend(crate::symbol_walkback::extract_symbols_by_walkback(
             new,
             &new_modified_lines,

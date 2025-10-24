@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use anyhow::Result;
 use regex::Regex;
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::path::Path;
 use std::sync::LazyLock;
 use streaming_iterator::StreamingIterator;
@@ -471,7 +471,7 @@ impl TreeSitterAnalyzer {
 
             if let Some(name) = function_name {
                 // Track which capture patterns were matched to determine if function has body
-                let mut matched_patterns = std::collections::HashSet::new();
+                let mut matched_patterns = FxHashSet::default();
                 for capture in m.captures {
                     let capture_name = self.function_query.capture_names()[capture.index as usize];
                     matched_patterns.insert(capture_name);
@@ -1687,7 +1687,7 @@ impl TreeSitterAnalyzer {
         global_types: &GlobalTypeRegistry,
     ) -> Vec<FunctionInfo> {
         // Build local type map from current file - typedefs are now included in types with kind="typedef"
-        let mut local_types = HashMap::new();
+        let mut local_types = FxHashMap::default();
         for type_info in types {
             local_types.insert(
                 type_info.name.clone(),
@@ -1724,7 +1724,7 @@ impl TreeSitterAnalyzer {
     fn resolve_parameter_types(
         &self,
         parameters: &[ParameterInfo],
-        local_types: &HashMap<String, (String, String)>,
+        local_types: &FxHashMap<String, (String, String)>,
         global_types: &GlobalTypeRegistry,
     ) -> Vec<ParameterInfo> {
         parameters
@@ -1747,7 +1747,7 @@ impl TreeSitterAnalyzer {
     fn lookup_parameter_type(
         &self,
         type_name: &str,
-        local_types: &HashMap<String, (String, String)>,
+        local_types: &FxHashMap<String, (String, String)>,
         global_types: &GlobalTypeRegistry,
     ) -> (Option<String>, Option<String>) {
         // Clean the type name by removing decorations
@@ -1828,8 +1828,8 @@ impl TreeSitterAnalyzer {
     }
 
     /// Build a local type map from current file's types (typedefs are included as types with kind="typedef")
-    pub fn build_local_type_map(&self, types: &[TypeInfo]) -> HashMap<String, (String, String)> {
-        let mut local_types = HashMap::new();
+    pub fn build_local_type_map(&self, types: &[TypeInfo]) -> FxHashMap<String, (String, String)> {
+        let mut local_types = FxHashMap::default();
 
         for type_info in types {
             local_types.insert(
@@ -2041,9 +2041,7 @@ impl TreeSitterAnalyzer {
         &self,
         raw_functions: Vec<FunctionInfo>,
     ) -> Vec<FunctionInfo> {
-        use std::collections::HashMap;
-
-        let mut seen_functions = HashMap::<String, FunctionInfo>::new();
+        let mut seen_functions = FxHashMap::<String, FunctionInfo>::default();
 
         for func in raw_functions {
             let key = func.name.clone();
@@ -2090,9 +2088,7 @@ impl TreeSitterAnalyzer {
     /// Deduplicate types within a single file
     /// Simple deduplication by (name, kind) - types should be unique within a file anyway
     fn deduplicate_types_within_file(&self, raw_types: Vec<TypeInfo>) -> Vec<TypeInfo> {
-        use std::collections::HashMap;
-
-        let mut seen_types = HashMap::<(String, String), TypeInfo>::new();
+        let mut seen_types = FxHashMap::<(String, String), TypeInfo>::default();
 
         for type_info in raw_types {
             let key = (type_info.name.clone(), type_info.kind.clone());
@@ -2122,9 +2118,7 @@ impl TreeSitterAnalyzer {
     /// Deduplicate macros within a single file  
     /// Simple deduplication by name - macros should be unique within a file anyway
     fn deduplicate_macros_within_file(&self, raw_macros: Vec<MacroInfo>) -> Vec<MacroInfo> {
-        use std::collections::HashMap;
-
-        let mut seen_macros = HashMap::<String, MacroInfo>::new();
+        let mut seen_macros = FxHashMap::<String, MacroInfo>::default();
 
         for macro_info in raw_macros {
             let key = macro_info.name.clone();

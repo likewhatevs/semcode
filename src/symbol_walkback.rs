@@ -5,12 +5,15 @@
 //! to find enclosing function, struct, or macro definitions. This is much faster than
 //! full TreeSitter parsing while still accurately identifying modified symbols.
 
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 
 /// Extract symbols by walking back from modified lines to find function/struct/macro definitions
 /// Returns formatted symbol names (e.g., "function_name()", "struct foo", "#MACRO")
-pub fn extract_symbols_by_walkback(content: &str, modified_lines: &HashSet<usize>) -> Vec<String> {
-    let mut symbols = HashSet::new();
+pub fn extract_symbols_by_walkback(
+    content: &str,
+    modified_lines: &FxHashSet<usize>,
+) -> Vec<String> {
+    let mut symbols = FxHashSet::default();
     let lines: Vec<&str> = content.lines().collect();
 
     // For each modified line, walk back to find the containing symbol

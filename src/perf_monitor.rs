@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use once_cell::sync::Lazy;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -23,7 +23,7 @@ pub fn is_performance_monitoring_enabled() -> bool {
 
 #[derive(Debug, Default)]
 pub struct PerfStats {
-    metrics: HashMap<String, MetricData>,
+    metrics: FxHashMap<String, MetricData>,
 }
 
 #[derive(Debug, Default)]
@@ -37,7 +37,7 @@ struct MetricData {
 impl PerfStats {
     pub fn new() -> Self {
         Self {
-            metrics: HashMap::new(),
+            metrics: FxHashMap::default(),
         }
     }
 

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Mutex;
 
 const LINES_PER_PAGE: usize = 50;
@@ -9,11 +9,11 @@ const MAX_UNRELATED_QUERIES: usize = 5;
 /// Stores paginated results and tracks access patterns for automatic cleanup
 pub struct PageCache {
     // Outer map: query_key -> (page_num -> page_content)
-    cache: Mutex<HashMap<String, PagedQuery>>,
+    cache: Mutex<FxHashMap<String, PagedQuery>>,
 }
 
 struct PagedQuery {
-    pages: HashMap<usize, String>,
+    pages: FxHashMap<usize, String>,
     total_pages: usize,
     last_accessed_page: usize,
     unrelated_query_count: usize,
@@ -22,7 +22,7 @@ struct PagedQuery {
 impl PageCache {
     pub fn new() -> Self {
         Self {
-            cache: Mutex::new(HashMap::new()),
+            cache: Mutex::new(FxHashMap::default()),
         }
     }
 
@@ -96,7 +96,7 @@ impl PageCache {
         }
 
         // Create pages
-        let mut pages = HashMap::new();
+        let mut pages = FxHashMap::default();
         for page_num in 1..=total_pages {
             let start_idx = (page_num - 1) * LINES_PER_PAGE;
             let end_idx = std::cmp::min(start_idx + LINES_PER_PAGE, total_lines);
