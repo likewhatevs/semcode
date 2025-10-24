@@ -13,8 +13,8 @@ use semcode::{FunctionInfo, MacroInfo, TypeInfo};
 // Temporary call relationships are now embedded in function JSON columns
 use dashmap::DashSet;
 use gix::revision::walk::Sorting;
+use rustc_hash::{FxHashMap, FxHashSet};
 use semcode::perf_monitor::PERF_STATS;
-use std::collections::HashSet;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -281,7 +281,7 @@ async fn run_commits_only(args: Args) -> Result<()> {
     );
 
     // Get existing commits from database to avoid reprocessing
-    let existing_commits: HashSet<String> = {
+    let existing_commits: FxHashSet<String> = {
         let all_commits = db_manager.get_all_git_commits().await?;
         all_commits.into_iter().map(|c| c.git_sha).collect()
     };
@@ -343,7 +343,7 @@ async fn process_commits_pipeline(
     db_manager: Arc<DatabaseManager>,
     batch_size: usize,
     num_workers: usize,
-    existing_commits: HashSet<String>,
+    existing_commits: FxHashSet<String>,
     num_inserters: usize,
 ) -> Result<()> {
     use std::sync::Mutex;
@@ -582,7 +582,7 @@ async fn run_pipeline(args: Args) -> Result<()> {
     if !args.vectors {
         // Determine which files to process based on incremental mode
         let mut files_to_process = Vec::new();
-        let git_files_map: Option<std::collections::HashMap<PathBuf, GitFileEntry>> = None;
+        let git_files_map: Option<FxHashMap<PathBuf, GitFileEntry>> = None;
         let extensions: Vec<String> = args
             .extensions
             .iter()
@@ -1037,7 +1037,7 @@ fn stream_git_file_tuples_batch(
     commit_batch: Vec<String>,
     extensions: Vec<String>,
     tuple_tx: mpsc::Sender<GitFileTuple>,
-    processed_files: Arc<HashSet<String>>,
+    processed_files: Arc<FxHashSet<String>>,
     sent_in_this_run: Arc<DashSet<String>>,
 ) -> Result<()> {
     // Open repository ONCE per generator thread and reuse for all commits
@@ -1251,7 +1251,7 @@ async fn process_git_tuples_streaming(
     extensions: Vec<String>,
     source_root: PathBuf,
     no_macros: bool,
-    processed_files: Arc<HashSet<String>>,
+    processed_files: Arc<FxHashSet<String>>,
     num_workers: usize,
     db_manager: Arc<DatabaseManager>,
     num_inserters: usize,
@@ -1532,10 +1532,8 @@ async fn process_git_tuples_streaming(
 }
 
 /// Parse tags from commit message (e.g., Signed-off-by:, Reported-by:, etc.)
-fn parse_commit_message_tags(message: &str) -> std::collections::HashMap<String, Vec<String>> {
-    use std::collections::HashMap;
-
-    let mut tags: HashMap<String, Vec<String>> = HashMap::new();
+fn parse_commit_message_tags(message: &str) -> FxHashMap<String, Vec<String>> {
+    let mut tags: FxHashMap<String, Vec<String>> = FxHashMap::default();
 
     for line in message.lines() {
         let line = line.trim();
@@ -1785,7 +1783,7 @@ async fn process_git_range(
     // Step 1: Get already processed files from database for deduplication
     info!("Loading processed files from database for deduplication");
     let processed_files_records = db_manager.get_all_processed_files().await?;
-    let processed_files: HashSet<String> = processed_files_records
+    let processed_files: FxHashSet<String> = processed_files_records
         .into_iter()
         .map(|record| record.git_file_sha)
         .collect();
@@ -1813,7 +1811,7 @@ async fn process_git_range(
         );
 
         // Get existing commits from database to avoid reprocessing
-        let existing_commits: HashSet<String> = {
+        let existing_commits: FxHashSet<String> = {
             let all_commits = db_manager.get_all_git_commits().await?;
             all_commits.into_iter().map(|c| c.git_sha).collect()
         };

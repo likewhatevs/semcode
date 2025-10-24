@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 use anyhow::Result;
 use colored::*;
-use std::collections::HashSet;
+use rustc_hash::FxHashSet;
 use std::io::Read;
 use std::path::Path;
 
 #[derive(Debug)]
 pub struct DiffParseResult {
-    pub modified_functions: HashSet<String>, // Functions that are actually modified (from hunk headers and definitions)
-    pub called_functions: HashSet<String>,   // Functions that are called in added/removed lines
-    pub modified_types: HashSet<String>,     // Types that are modified
-    pub modified_macros: HashSet<String>,    // Macros that are modified
+    pub modified_functions: FxHashSet<String>, // Functions that are actually modified (from hunk headers and definitions)
+    pub called_functions: FxHashSet<String>,   // Functions that are called in added/removed lines
+    pub modified_types: FxHashSet<String>,     // Types that are modified
+    pub modified_macros: FxHashSet<String>,    // Macros that are modified
 }
 
 fn expand_tilde(path: &str) -> String {
@@ -56,10 +56,10 @@ fn resolve_path(path: &str) -> Result<String> {
 }
 
 pub fn parse_unified_diff(diff_content: &str) -> Result<DiffParseResult> {
-    let mut modified_functions = HashSet::new();
-    let mut called_functions = HashSet::new();
-    let mut modified_types = HashSet::new();
-    let mut modified_macros = HashSet::new();
+    let mut modified_functions = FxHashSet::default();
+    let mut called_functions = FxHashSet::default();
+    let mut modified_types = FxHashSet::default();
+    let mut modified_macros = FxHashSet::default();
     let lines: Vec<&str> = diff_content.lines().collect();
     let mut i = 0;
 
@@ -173,14 +173,14 @@ fn parse_hunk_with_walkback(
     i: &mut usize,
     _file_path: &str,
 ) -> Result<DiffParseResult> {
-    let mut modified_functions = HashSet::new();
-    let mut called_functions = HashSet::new();
-    let mut modified_types = HashSet::new();
-    let mut modified_macros = HashSet::new();
+    let mut modified_functions = FxHashSet::default();
+    let mut called_functions = FxHashSet::default();
+    let mut modified_types = FxHashSet::default();
+    let mut modified_macros = FxHashSet::default();
 
     // Collect all lines from the hunk (context + modified)
     let mut hunk_lines = Vec::new();
-    let mut modified_line_numbers = HashSet::new(); // Track which lines were modified
+    let mut modified_line_numbers = FxHashSet::default(); // Track which lines were modified
     let mut current_line = 0;
 
     // First, extract function name from the hunk header (@@ line)
@@ -268,8 +268,8 @@ fn parse_hunk_with_walkback(
     })
 }
 
-fn extract_function_calls(line: &str) -> HashSet<String> {
-    let mut function_calls = HashSet::new();
+fn extract_function_calls(line: &str) -> FxHashSet<String> {
+    let mut function_calls = FxHashSet::default();
     let line = line.trim();
 
     // Skip empty lines, comments, and preprocessor directives

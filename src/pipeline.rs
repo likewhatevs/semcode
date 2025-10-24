@@ -149,7 +149,8 @@
 use anyhow::Result;
 use crossbeam_channel::bounded;
 use indicatif::{ProgressBar, ProgressStyle};
-use std::collections::HashSet;
+use rustc_hash::FxHashMap;
+use rustc_hash::FxHashSet;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -190,8 +191,8 @@ pub struct PipelineBuilder {
     pub new_macros: Arc<AtomicUsize>,
 
     // Tracking for incremental processing
-    pub newly_processed_files: Arc<Mutex<HashSet<String>>>, // git_sha:filename pairs
-    pub git_sha: Option<String>,                            // Current git SHA for the source root
+    pub newly_processed_files: Arc<Mutex<FxHashSet<String>>>, // git_sha:filename pairs
+    pub git_sha: Option<String>,                              // Current git SHA for the source root
 
     // Force reprocessing mode for incremental scans
     pub force_reprocess: bool,
@@ -248,7 +249,7 @@ impl PipelineBuilder {
             new_functions: Arc::new(AtomicUsize::new(0)),
             new_types: Arc::new(AtomicUsize::new(0)), // Now includes typedefs with kind="typedef"
             new_macros: Arc::new(AtomicUsize::new(0)),
-            newly_processed_files: Arc::new(Mutex::new(HashSet::new())),
+            newly_processed_files: Arc::new(Mutex::new(FxHashSet::default())),
             git_sha,
             force_reprocess,
             full_tree_incremental,
@@ -270,7 +271,7 @@ impl PipelineBuilder {
             new_functions: Arc::new(AtomicUsize::new(0)),
             new_types: Arc::new(AtomicUsize::new(0)),
             new_macros: Arc::new(AtomicUsize::new(0)),
-            newly_processed_files: Arc::new(Mutex::new(HashSet::new())),
+            newly_processed_files: Arc::new(Mutex::new(FxHashSet::default())),
             git_sha: Some(git_sha),
             force_reprocess: true,       // Always reprocess for git commit mode
             full_tree_incremental: true, // Use incremental processing with deduplication
@@ -284,7 +285,7 @@ impl PipelineBuilder {
     pub async fn build_and_run_with_git_files(
         self,
         _files: Vec<PathBuf>,
-        git_files: Option<std::collections::HashMap<PathBuf, GitFileEntry>>,
+        git_files: Option<FxHashMap<PathBuf, GitFileEntry>>,
     ) -> Result<()> {
         let num_threads = num_cpus::get();
         tracing::info!("=== PIPELINE START: {} threads available ===", num_threads);
@@ -796,7 +797,7 @@ impl PipelineBuilder {
     }
 
     /// Pre-load all processed files for fast in-memory lookup (optimized streaming version)
-    async fn load_processed_files_set(&self) -> Result<Arc<HashSet<(String, String)>>> {
+    async fn load_processed_files_set(&self) -> Result<Arc<FxHashSet<(String, String)>>> {
         // Use optimized method that only loads needed columns and streams the results
         // This prevents memory issues with large repositories
         let lookup_set = self.db_manager.get_processed_file_pairs().await?;
@@ -805,7 +806,7 @@ impl PipelineBuilder {
     }
 
     /// Load git manifest of current commit - returns (file_path, git_file_sha) for all files
-    async fn load_git_manifest(&self) -> Result<std::collections::HashMap<PathBuf, String>> {
+    async fn load_git_manifest(&self) -> Result<FxHashMap<PathBuf, String>> {
         // Get current commit SHA
         let repo = gix::discover(&self.source_root)
             .map_err(|e| anyhow::anyhow!("Not in a git repository: {}", e))?;
@@ -818,7 +819,7 @@ impl PipelineBuilder {
             .tree()
             .map_err(|e| anyhow::anyhow!("Failed to get tree for HEAD commit: {}", e))?;
 
-        let mut manifest = std::collections::HashMap::new();
+        let mut manifest = FxHashMap::default();
 
         // Walk the entire git tree
         use gix::traverse::tree::Recorder;
@@ -841,8 +842,8 @@ impl PipelineBuilder {
     /// Filter manifest files against database - return files that need processing
     fn filter_files_by_manifest(
         &self,
-        git_manifest: &std::collections::HashMap<PathBuf, String>,
-        processed_files_set: &HashSet<(String, String)>,
+        git_manifest: &FxHashMap<PathBuf, String>,
+        processed_files_set: &FxHashSet<(String, String)>,
     ) -> Result<Vec<(PathBuf, String)>> {
         let mut files_to_process = Vec::new();
         let mut skipped_count = 0;

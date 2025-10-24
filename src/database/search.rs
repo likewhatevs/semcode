@@ -10,7 +10,7 @@ use lancedb::DistanceType;
 use crate::database::content::ContentStore;
 use crate::types::{FieldInfo, FunctionInfo, MacroInfo, ParameterInfo, TypeInfo, TypedefInfo};
 use crate::vectorizer::CodeVectorizer;
-use std::collections::HashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 #[derive(Debug)]
 pub struct FunctionMatch {
@@ -40,7 +40,7 @@ impl SearchManager {
         &self,
         file_paths: &[String],
         git_sha: &str,
-    ) -> Result<HashMap<String, String>> {
+    ) -> Result<FxHashMap<String, String>> {
         // Use the proper gitoxide-based resolution from git.rs
         tracing::debug!(
             "resolve_git_file_hashes: Looking for {} file paths at git SHA {}",
@@ -62,7 +62,7 @@ impl SearchManager {
                     "resolve_git_file_hashes: Failed to resolve git files: {}",
                     e
                 );
-                Ok(HashMap::new()) // Return empty map instead of failing, let caller handle
+                Ok(FxHashMap::default()) // Return empty map instead of failing, let caller handle
             }
         }
     }
@@ -232,7 +232,7 @@ impl SearchManager {
         };
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -507,7 +507,7 @@ impl SearchManager {
         };
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -961,7 +961,7 @@ impl SearchManager {
         };
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -1028,7 +1028,7 @@ impl SearchManager {
         };
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -1361,7 +1361,7 @@ impl SearchManager {
         }
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -1605,7 +1605,7 @@ impl SearchManager {
         }
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -1853,7 +1853,7 @@ impl SearchManager {
         }
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -2123,7 +2123,7 @@ impl SearchManager {
         }
 
         // Extract unique file paths
-        let mut file_paths = std::collections::HashSet::new();
+        let mut file_paths = FxHashSet::default();
         for batch in &initial_results {
             let file_path_array = batch
                 .column(1)
@@ -2392,7 +2392,7 @@ impl VectorSearchManager {
         }
 
         // Create a map from content hash to similarity score
-        let score_map: HashMap<String, f32> = content_hash_scores.into_iter().collect();
+        let score_map: FxHashMap<String, f32> = content_hash_scores.into_iter().collect();
 
         // Now query the functions table for these content hashes (in body_hash field)
         let functions_table = self.connection.open_table("functions").execute().await?;
@@ -2795,7 +2795,7 @@ impl VectorSearchManager {
             .try_collect::<Vec<_>>()
             .await?;
 
-        let mut existing_commit_shas = std::collections::HashSet::new();
+        let mut existing_commit_shas = FxHashSet::default();
         for batch in &existing_vector_results {
             let sha_array = batch
                 .column(0)
@@ -3027,7 +3027,7 @@ impl VectorSearchManager {
         }
 
         // Create a map from git_sha to similarity score
-        let score_map: HashMap<String, f32> = sha_scores.iter().cloned().collect();
+        let score_map: FxHashMap<String, f32> = sha_scores.iter().cloned().collect();
         let shas: Vec<String> = sha_scores.into_iter().map(|(sha, _)| sha).collect();
 
         // Query git_commits table for these commit SHAs
@@ -3101,7 +3101,7 @@ impl VectorSearchManager {
                     let similarity_score = score_map.get(&git_sha).copied().unwrap_or(0.0);
 
                     let parent_sha: Vec<String> = serde_json::from_str(parent_sha_array.value(i))?;
-                    let tags: std::collections::HashMap<String, Vec<String>> =
+                    let tags: FxHashMap<String, Vec<String>> =
                         serde_json::from_str(tags_array.value(i))?;
                     let symbols: Vec<String> = serde_json::from_str(symbols_array.value(i))?;
                     let files: Vec<String> = serde_json::from_str(files_array.value(i))?;

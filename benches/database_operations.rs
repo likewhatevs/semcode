@@ -3,6 +3,7 @@
 // Database operation performance benchmarks
 //
 // Run with: cargo bench --bench database_operations
+use rustc_hash::FxHashSet;
 // Note: These benchmarks require a temporary database and are heavier
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};

@@ -6,7 +6,7 @@ use arrow::record_batch::RecordBatchIterator;
 use futures::TryStreamExt;
 use lancedb::connection::Connection;
 use lancedb::query::{ExecutableQuery, QueryBase};
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::sync::Arc;
 
 use crate::database::connection::OPTIMAL_BATCH_SIZE;
@@ -98,13 +98,13 @@ impl VectorStore {
     pub async fn get_vectors_batch(
         &self,
         content_hashes: &[String],
-    ) -> Result<HashMap<String, Vec<f32>>> {
+    ) -> Result<FxHashMap<String, Vec<f32>>> {
         if content_hashes.is_empty() {
-            return Ok(HashMap::new());
+            return Ok(FxHashMap::default());
         }
 
         let table = self.connection.open_table("vectors").execute().await?;
-        let mut result = HashMap::new();
+        let mut result = FxHashMap::default();
 
         // Process in chunks to avoid query size limits
         for chunk in content_hashes.chunks(100) {
