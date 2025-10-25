@@ -36,7 +36,7 @@ streaming-iterator = "0.1"
 once_cell = "1.20"
 crossbeam-channel = "0.5"
 sha1 = "0.10"
-blake3 = "1.8.2"
+xxhash-rust = { version = "0.8", features = ["xxh3"] }
 hex = "0.4"
 dashmap = "6.1"
 tempfile = "3.14"

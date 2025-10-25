@@ -6,7 +6,7 @@ This document describes the LanceDB database schema used by semcode for storing 
 
 Semcode uses LanceDB (Apache Arrow-based columnar database) with several key architectural features:
 
-- **Content Deduplication**: Large content (function bodies, type definitions, macro definitions) is stored once in sharded content tables, referenced by Blake3 hex hashes
+- **Content Deduplication**: Large content (function bodies, type definitions, macro definitions) is stored once in sharded content tables, referenced by xxHash3 hex hashes
 - **Content Sharding**: Content is distributed across 16 shard tables (content_0 through content_15) for optimal performance
 - **Embedded Relationships**: Call relationships and type dependencies are stored as JSON arrays within each entity's record
 - **Git Integration**: Git SHA-based tracking for incremental processing and multi-version support
@@ -19,9 +19,9 @@ Semcode uses LanceDB (Apache Arrow-based columnar database) with several key arc
 - **Vector Embeddings**: 256-dimensional float32 vectors for semantic search
 - **Hash Algorithms**:
   - SHA-1 for git file content tracking (stored as hex strings)
-  - Blake3 for content deduplication (faster, better collision resistance, stored as hex strings)
+  - xxHash3 for content deduplication (faster than xxHash3, excellent collision resistance, stored as hex strings)
 - **Schema Format**: Apache Arrow schemas with strongly-typed columns
-- **Content Sharding**: 16-way sharding based on Blake3 hash prefix
+- **Content Sharding**: 16-way sharding based on xxHash3 hash prefix
 
 ## Database Tables
 
@@ -52,7 +52,7 @@ line_start          (Int64, NOT NULL)    - Starting line number
 line_end            (Int64, NOT NULL)    - Ending line number
 return_type         (Utf8, NOT NULL)     - Function return type
 parameters          (Utf8, NOT NULL)     - JSON-encoded parameter list
-body_hash           (Utf8, nullable)     - Blake3 hash referencing content table as hex string (nullable for empty bodies)
+body_hash           (Utf8, nullable)     - xxHash3 hash referencing content table as hex string (nullable for empty bodies)
 calls               (Utf8, nullable)     - JSON array of function names called by this function
 types               (Utf8, nullable)     - JSON array of type names used by this function
 ```
@@ -60,8 +60,8 @@ types               (Utf8, nullable)     - JSON array of type names used by this
 **Content Storage:**
 - Function bodies are stored in sharded content tables (content_0 through content_15), referenced by `body_hash`
 - Empty function bodies (declarations) have null `body_hash`
-- Content deduplication: identical function bodies share the same Blake3 hash
-- Shard selection based on first hex character of Blake3 hash
+- Content deduplication: identical function bodies share the same xxHash3 hash
+- Shard selection based on first hex character of xxHash3 hash
 
 **Rust Struct:** `FunctionInfo`
 - Parameters are stored as JSON-encoded `Vec<ParameterInfo>`
@@ -92,15 +92,15 @@ line                (Int64, NOT NULL)    - Line number where type is defined
 kind                (Utf8, NOT NULL)     - Type kind: "struct", "union", "enum", "typedef"
 size                (Int64, nullable)    - Size in bytes (if available)
 fields              (Utf8, NOT NULL)     - JSON string of field/member information
-definition_hash     (Utf8, nullable)     - Blake3 hash referencing content table as hex string (nullable for empty definitions)
+definition_hash     (Utf8, nullable)     - xxHash3 hash referencing content table as hex string (nullable for empty definitions)
 types               (Utf8, nullable)     - JSON array of type names referenced by this type
 ```
 
 **Content Storage:**
 - Type definitions are stored in sharded content tables, referenced by `definition_hash`
 - Empty definitions have null `definition_hash`
-- Content deduplication: identical type definitions share the same Blake3 hash
-- Shard selection based on first hex character of Blake3 hash
+- Content deduplication: identical type definitions share the same xxHash3 hash
+- Shard selection based on first hex character of xxHash3 hash
 
 **Example JSON columns:**
 ```json
@@ -135,7 +135,7 @@ git_file_hash       (Utf8, NOT NULL)     - SHA-1 hash of file content as hex str
 line                (Int64, NOT NULL)    - Line number where macro is defined
 is_function_like    (Boolean, NOT NULL)  - Whether macro takes parameters
 parameters          (Utf8, nullable)     - JSON string of parameter names (if function-like)
-definition_hash     (Utf8, nullable)     - Blake3 hash referencing content table as hex string (nullable for empty definitions)
+definition_hash     (Utf8, nullable)     - xxHash3 hash referencing content table as hex string (nullable for empty definitions)
 calls               (Utf8, nullable)     - JSON array of function names called in macro expansion
 types               (Utf8, nullable)     - JSON array of type names used in macro expansion
 ```
@@ -143,8 +143,8 @@ types               (Utf8, nullable)     - JSON array of type names used in macr
 **Content Storage:**
 - Macro definitions are stored in sharded content tables, referenced by `definition_hash`
 - Empty definitions have null hash values
-- Content deduplication: identical macro definitions share the same Blake3 hash
-- Shard selection based on first hex character of Blake3 hash
+- Content deduplication: identical macro definitions share the same xxHash3 hash
+- Shard selection based on first hex character of xxHash3 hash
 
 **Example JSON columns:**
 ```json
@@ -171,12 +171,12 @@ Stores CodeBERT embeddings for semantic search functionality.
 
 **Schema:**
 ```
-content_hash        (Utf8, NOT NULL)                         - Blake3 hash of content as hex string
+content_hash        (Utf8, NOT NULL)                         - xxHash3 hash of content as hex string
 vector              (FixedSizeList[Float32, 256], NOT NULL)  - CodeBERT embedding vector
 ```
 
 **Notes:**
-- Vectors are linked to content via `content_hash` (Blake3 hash of the content)
+- Vectors are linked to content via `content_hash` (xxHash3 hash of the content)
 - Enables semantic search across functions, types, and macros
 - Vector generation is optional and controlled by the `--vectors` flag
 - Vector dimension is configurable (currently 256)
@@ -333,36 +333,36 @@ Stores deduplicated content referenced by other tables, distributed across 16 sh
 
 **Schema (each shard):**
 ```
-blake3_hash         (Utf8, NOT NULL)     - Blake3 hash of content as hex string (primary key)
+xxhash         (Utf8, NOT NULL)     - xxHash3 hash of content as hex string (primary key)
 content             (Utf8, NOT NULL)     - The actual content (function bodies, definitions, expansions)
 ```
 
 **Content Sharding:**
-- Content is distributed across 16 shard tables based on the first hex character of Blake3 hash
+- Content is distributed across 16 shard tables based on the first hex character of xxHash3 hash
 - Shard selection: `shard_number = first_hex_char % 16`
 - Each shard operates independently for maximum parallelism
-- Blake3 hashing provides fast, collision-resistant content deduplication
-- Other tables reference content via `blake3_hash` foreign keys
+- xxHash3 hashing provides fast, collision-resistant content deduplication
+- Other tables reference content via `xxhash` foreign keys (column name remains xxhash for now)
 - Significantly reduces storage size for codebases with repeated patterns
 
 **Shard Distribution:**
-- **content_0**: Blake3 hashes starting with 0
-- **content_1**: Blake3 hashes starting with 1
+- **content_0**: xxHash3 hashes starting with 0
+- **content_1**: xxHash3 hashes starting with 1
 - **...**: (continuing pattern)
-- **content_15**: Blake3 hashes starting with f (and wrapping from higher hex digits)
+- **content_15**: xxHash3 hashes starting with f (and wrapping from higher hex digits)
 
 **Indices (per shard):**
-- BTree on `blake3_hash` (primary key for deduplication and fast lookups)
+- BTree on `xxhash` (primary key for deduplication and fast lookups)
 - BTree on `content` (text searches and pattern matching)
 
 ## Key Features
 
 ### Content Deduplication Architecture
 
-**Blake3-based Content Storage:**
+**xxHash3-based Content Storage:**
 - All large content (function bodies, type definitions, macro definitions) stored once across sharded content tables
-- Blake3 hashing provides fast, collision-resistant deduplication
-- Other tables reference content via `blake3_hash` foreign keys as hex strings
+- xxHash3 hashing provides fast, collision-resistant deduplication
+- Other tables reference content via `xxhash` foreign keys as hex strings (column name remains xxhash for now)
 - Dramatic storage reduction for codebases with repeated patterns
 
 **Content Resolution:**
@@ -375,7 +375,7 @@ let body_content = content_store.get_content(&function.body_hash).await?;
 ### Content Sharding System
 
 **16-Way Sharding:**
-- Content distributed across content_0 through content_15 based on Blake3 hash prefix
+- Content distributed across content_0 through content_15 based on xxHash3 hash prefix
 - Prevents single-table performance bottlenecks on large codebases
 - Enables parallel operations across shards
 - Automatic shard selection based on hash: `shard = first_hex_char % 16`
@@ -467,7 +467,7 @@ SELECT name, file_path, body_hash FROM functions WHERE name = 'main'
 SELECT name, definition_hash FROM types WHERE kind = 'struct'
 
 -- Get content from appropriate shard
-SELECT content FROM content_5 WHERE blake3_hash = 'abc123...'
+SELECT content FROM content_5 WHERE xxhash = 'abc123...'
 ```
 
 ### Content Resolution Queries
@@ -476,13 +476,13 @@ SELECT content FROM content_5 WHERE blake3_hash = 'abc123...'
 -- Note: Shard selection done programmatically based on hash
 SELECT f.name, f.file_path, c.content as body
 FROM functions f
-LEFT JOIN content_5 c ON f.body_hash = c.blake3_hash
+LEFT JOIN content_5 c ON f.body_hash = c.xxhash
 WHERE f.name = 'main' AND f.body_hash LIKE '5%'
 
 -- Type with definition content
 SELECT t.name, t.kind, c.content as definition
 FROM types t
-LEFT JOIN content_3 c ON t.definition_hash = c.blake3_hash
+LEFT JOIN content_3 c ON t.definition_hash = c.xxhash
 WHERE t.name = 'user_data' AND t.definition_hash LIKE '3%'
 ```
 
@@ -531,14 +531,14 @@ SELECT * FROM functions
 WHERE name = 'parse_config' AND git_file_hash = 'abc123...'
 
 -- Content deduplication analysis across all shards
-SELECT blake3_hash, COUNT(*) as usage_count
+SELECT xxhash, COUNT(*) as usage_count
 FROM (
-  SELECT body_hash as blake3_hash FROM functions WHERE body_hash IS NOT NULL
+  SELECT body_hash as xxhash FROM functions WHERE body_hash IS NOT NULL
   UNION ALL
   SELECT definition_hash FROM types WHERE definition_hash IS NOT NULL
   UNION ALL
   SELECT definition_hash FROM macros WHERE definition_hash IS NOT NULL
-) GROUP BY blake3_hash HAVING usage_count > 1
+) GROUP BY xxhash HAVING usage_count > 1
 ```
 
 ### Commit Metadata Queries
@@ -586,9 +586,9 @@ WHERE c1.parent_sha LIKE '%"' || c2.git_sha || '"%'
 -- Find content usage patterns across shards
 -- (This would be done programmatically across all content_N tables)
 WITH all_content AS (
-  SELECT blake3_hash FROM content_0
+  SELECT xxhash FROM content_0
   UNION ALL
-  SELECT blake3_hash FROM content_1
+  SELECT xxhash FROM content_1
   -- ... through content_15
 )
 SELECT COUNT(*) as total_unique_content FROM all_content
@@ -598,13 +598,13 @@ SELECT COUNT(*) as total_unique_content FROM all_content
 
 - **Single-pass extraction**: All relationships captured during initial Tree-sitter analysis
 - **O(log n) lookups**: BTree indices on all key fields including content hashes, line positions, and relationships
-- **Content deduplication**: Blake3-based deduplication eliminates redundant storage
+- **Content deduplication**: xxHash3-based deduplication eliminates redundant storage
 - **Efficient filtering**: JSON LIKE queries with proper indexing for relationships
 - **Optimized relationship queries**: Dedicated indices on `calls` and `types` columns enable fast dependency analysis
 - **Spatial query performance**: Line-based indices (`line_start`, `line_end`) provide efficient location-based searches and sorting
 - **Atomic consistency**: Entity metadata stored together, content resolved on-demand
 - **Minimal relationship I/O**: No cross-table joins required for call/type relationships
-- **Fast content resolution**: Indexed Blake3 hash lookups for content retrieval
+- **Fast content resolution**: Indexed xxHash3 hash lookups for content retrieval
 - **Parallel shard operations**: Multiple content shards enable concurrent operations
 - **Scalable architecture**: Sharding prevents single-table bottlenecks
 
@@ -612,7 +612,7 @@ SELECT COUNT(*) as total_unique_content FROM all_content
 
 - **Multi-level deduplication**:
   - Git SHA-based file content uniqueness prevents duplicate file processing
-  - Blake3-based content deduplication eliminates redundant function bodies, type definitions, and macro content
+  - xxHash3-based content deduplication eliminates redundant function bodies, type definitions, and macro content
 - **Columnar compression**: LanceDB's columnar format with built-in compression
 - **Content normalization**: Identical source code patterns stored once regardless of location
 - **Selective indexing**: Only function-like macros stored (95%+ noise reduction)
