@@ -17,7 +17,7 @@ const NUM_SHARDS: u8 = 16;
 
 #[derive(Debug, Clone)]
 pub struct ContentInfo {
-    pub blake3_hash: String,
+    pub xxhash: String,
     pub content: String,
 }
 
@@ -30,13 +30,13 @@ impl ContentStore {
         Self { connection }
     }
 
-    /// Determine which shard a blake3 hash belongs to based on its first hex character
-    fn get_shard_number(blake3_hash: &str) -> u8 {
-        if blake3_hash.is_empty() {
+    /// Determine which shard an xxHash3 hash belongs to based on its first hex character
+    fn get_shard_number(xxhash: &str) -> u8 {
+        if xxhash.is_empty() {
             0
         } else {
             // Use the first hex character to determine shard (0-15)
-            blake3_hash
+            xxhash
                 .chars()
                 .next()
                 .and_then(|c| c.to_digit(16))
@@ -50,24 +50,24 @@ impl ContentStore {
         format!("content_{shard}")
     }
 
-    /// Get the table name for a blake3 hash
-    fn get_table_name_for_hash(blake3_hash: &str) -> String {
-        let shard = Self::get_shard_number(blake3_hash);
+    /// Get the table name for an xxHash3 hash
+    fn get_table_name_for_hash(xxhash: &str) -> String {
+        let shard = Self::get_shard_number(xxhash);
         Self::get_shard_table_name(shard)
     }
 
-    /// Insert content and return the blake3 hash - uses upsert
+    /// Insert content and return the xxHash3 hash - uses upsert
     pub async fn store_content(&self, content: &str) -> Result<String> {
-        let blake3_hash = hash::compute_blake3_hash(content);
+        let xxhash = hash::compute_xxhash(content);
 
         let content_info = ContentInfo {
-            blake3_hash: blake3_hash.clone(),
+            xxhash: xxhash.clone(),
             content: content.to_string(),
         };
 
         // Use upsert operation instead of manual existence checking
         self.insert_batch(vec![content_info]).await?;
-        Ok(blake3_hash)
+        Ok(xxhash)
     }
 
     /// Insert a batch of content items using upsert - handles duplicates gracefully
@@ -76,17 +76,17 @@ impl ContentStore {
             return Ok(());
         }
 
-        // Deduplicate content items by blake3_hash within the batch
+        // Deduplicate content items by xxhash within the batch
         let mut dedup_map: FxHashMap<String, ContentInfo> = FxHashMap::default();
         for item in content_items {
-            dedup_map.insert(item.blake3_hash.clone(), item);
+            dedup_map.insert(item.xxhash.clone(), item);
         }
         let deduplicated_items: Vec<ContentInfo> = dedup_map.into_values().collect();
 
         // Group content items by shard
         let mut shard_groups: FxHashMap<u8, Vec<ContentInfo>> = FxHashMap::default();
         for item in deduplicated_items {
-            let shard = Self::get_shard_number(&item.blake3_hash);
+            let shard = Self::get_shard_number(&item.xxhash);
             shard_groups.entry(shard).or_default().push(item);
         }
 
@@ -116,17 +116,17 @@ impl ContentStore {
             content_builder.append_value(&item.content);
         }
 
-        // Create blake3_hash StringArray (non-nullable)
-        let mut blake3_hash_builder = StringBuilder::new();
+        // Create xxhash StringArray (non-nullable)
+        let mut xxhash_builder = StringBuilder::new();
         for item in content_items {
-            blake3_hash_builder.append_value(&item.blake3_hash);
+            xxhash_builder.append_value(&item.xxhash);
         }
-        let blake3_hash_array = blake3_hash_builder.finish();
+        let xxhash_array = xxhash_builder.finish();
 
         let schema = self.get_schema();
 
         let batch = RecordBatch::try_from_iter(vec![
-            ("blake3_hash", Arc::new(blake3_hash_array) as ArrayRef),
+            ("xxhash", Arc::new(xxhash_array) as ArrayRef),
             ("content", Arc::new(content_builder.finish()) as ArrayRef),
         ])?;
 
@@ -134,7 +134,7 @@ impl ContentStore {
         let batch_iterator = RecordBatchIterator::new(batches.into_iter(), schema);
 
         // Use merge_insert for upsert functionality
-        let mut merge_insert = table.merge_insert(&["blake3_hash"]);
+        let mut merge_insert = table.merge_insert(&["xxhash"]);
         merge_insert
             .when_matched_update_all(None)
             .when_not_matched_insert_all();
@@ -144,14 +144,14 @@ impl ContentStore {
     }
 
     /// Check if content exists by hash - uses indexed lookup
-    pub async fn content_exists(&self, blake3_hash: &str) -> Result<bool> {
-        let table_name = Self::get_table_name_for_hash(blake3_hash);
+    pub async fn content_exists(&self, xxhash: &str) -> Result<bool> {
+        let table_name = Self::get_table_name_for_hash(xxhash);
         let table = self.connection.open_table(&table_name).execute().await?;
 
         // Use indexed lookup with hex string
         let results = table
             .query()
-            .only_if(format!("blake3_hash = '{blake3_hash}'"))
+            .only_if(format!("xxhash = '{xxhash}'"))
             .limit(1)
             .execute()
             .await?
@@ -162,15 +162,15 @@ impl ContentStore {
         Ok(!results.is_empty() && results[0].num_rows() > 0)
     }
 
-    /// Get content by blake3 hash - uses indexed lookup
-    pub async fn get_content(&self, blake3_hash: &str) -> Result<Option<String>> {
-        let table_name = Self::get_table_name_for_hash(blake3_hash);
+    /// Get content by xxHash3 hash - uses indexed lookup
+    pub async fn get_content(&self, xxhash: &str) -> Result<Option<String>> {
+        let table_name = Self::get_table_name_for_hash(xxhash);
         let table = self.connection.open_table(&table_name).execute().await?;
 
         // Use indexed lookup with hex string
         let results = table
             .query()
-            .only_if(format!("blake3_hash = '{blake3_hash}'"))
+            .only_if(format!("xxhash = '{xxhash}'"))
             .limit(1)
             .execute()
             .await?
@@ -191,9 +191,9 @@ impl ContentStore {
         Ok(None)
     }
 
-    /// Get content by blake3 hash hex string (now redundant since get_content takes hex strings directly)
-    pub async fn get_content_by_hex(&self, blake3_hash_hex: &str) -> Result<Option<String>> {
-        self.get_content(blake3_hash_hex).await
+    /// Get content by xxHash3 hash hex string (now redundant since get_content takes hex strings directly)
+    pub async fn get_content_by_hex(&self, xxhash_hex: &str) -> Result<Option<String>> {
+        self.get_content(xxhash_hex).await
     }
 
     /// Bulk fetch content for multiple hashes - uses indexed lookup
@@ -226,7 +226,7 @@ impl ContentStore {
                 let hash_list: Vec<String> = chunk.iter().map(|hash| format!("'{hash}'")).collect();
 
                 let in_clause = hash_list.join(", ");
-                let filter = format!("blake3_hash IN ({in_clause})");
+                let filter = format!("xxhash IN ({in_clause})");
 
                 // Use indexed lookup with WHERE IN clause
                 let results = table
@@ -239,7 +239,7 @@ impl ContentStore {
 
                 // Collect the content from results
                 for batch in &results {
-                    let blake3_hash_array = batch
+                    let xxhash_array = batch
                         .column(0)
                         .as_any()
                         .downcast_ref::<StringArray>()
@@ -251,7 +251,7 @@ impl ContentStore {
                         .unwrap();
 
                     for i in 0..batch.num_rows() {
-                        let hash = blake3_hash_array.value(i).to_string();
+                        let hash = xxhash_array.value(i).to_string();
                         let content = content_array.value(i).to_string();
                         content_map.insert(hash, content);
                     }
@@ -323,7 +323,7 @@ impl ContentStore {
         batch: &RecordBatch,
         row: usize,
     ) -> Result<Option<ContentInfo>> {
-        let blake3_hash_array = batch
+        let xxhash_array = batch
             .column(0)
             .as_any()
             .downcast_ref::<StringArray>()
@@ -335,15 +335,15 @@ impl ContentStore {
             .unwrap();
 
         Ok(Some(ContentInfo {
-            blake3_hash: blake3_hash_array.value(row).to_string(),
+            xxhash: xxhash_array.value(row).to_string(),
             content: content_array.value(row).to_string(),
         }))
     }
 
     fn get_schema(&self) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
-            Field::new("blake3_hash", DataType::Utf8, false), // Blake3 hash as hex string
-            Field::new("content", DataType::Utf8, false),     // The actual content
+            Field::new("xxhash", DataType::Utf8, false), // xxHash3 hash as hex string
+            Field::new("content", DataType::Utf8, false), // The actual content
         ]))
     }
 
@@ -408,14 +408,14 @@ pub struct ContentStats {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct ContentInfoJson {
-    pub blake3_hash: String, // Hex string for JSON
+    pub xxhash: String, // Hex string for JSON
     pub content: String,
 }
 
 impl From<ContentInfo> for ContentInfoJson {
     fn from(content_info: ContentInfo) -> Self {
         Self {
-            blake3_hash: content_info.blake3_hash, // Already a hex string
+            xxhash: content_info.xxhash, // Already a hex string
             content: content_info.content,
         }
     }

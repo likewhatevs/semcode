@@ -13,7 +13,7 @@ use crate::database::connection::OPTIMAL_BATCH_SIZE;
 
 #[derive(Debug, Clone)]
 pub struct VectorEntry {
-    pub content_hash: String, // Blake3 hash of the content
+    pub content_hash: String, // xxHash3 hash of the content
     pub vector: Vec<f32>,     // Variable-dimensional vector
 }
 
@@ -176,7 +176,7 @@ impl VectorStore {
 
     fn get_schema(&self, vector_dim: usize) -> Arc<Schema> {
         Arc::new(Schema::new(vec![
-            Field::new("content_hash", DataType::Utf8, false), // Blake3 content hash as hex string
+            Field::new("content_hash", DataType::Utf8, false), // xxHash3 content hash as hex string
             Field::new(
                 "vector",
                 DataType::FixedSizeList(

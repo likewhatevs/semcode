@@ -502,7 +502,7 @@ impl DatabaseManager {
         for func in &functions {
             if !func.body.is_empty() {
                 all_content_items.push(crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&func.body),
+                    xxhash: crate::hash::compute_xxhash(&func.body),
                     content: func.body.clone(),
                 });
             }
@@ -512,7 +512,7 @@ impl DatabaseManager {
         for type_info in &types {
             if !type_info.definition.is_empty() {
                 all_content_items.push(crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&type_info.definition),
+                    xxhash: crate::hash::compute_xxhash(&type_info.definition),
                     content: type_info.definition.clone(),
                 });
             }
@@ -522,7 +522,7 @@ impl DatabaseManager {
         for macro_info in &macros {
             if !macro_info.definition.is_empty() {
                 all_content_items.push(crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&macro_info.definition),
+                    xxhash: crate::hash::compute_xxhash(&macro_info.definition),
                     content: macro_info.definition.clone(),
                 });
             }
@@ -979,7 +979,7 @@ impl DatabaseManager {
             let content_items: Vec<crate::database::content::ContentInfo> = unique_definitions
                 .into_iter()
                 .map(|definition| crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&definition),
+                    xxhash: crate::hash::compute_xxhash(&definition),
                     content: definition,
                 })
                 .collect();
@@ -1155,7 +1155,7 @@ impl DatabaseManager {
             let content_items: Vec<crate::database::content::ContentInfo> = unique_definitions
                 .into_iter()
                 .map(|definition| crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&definition),
+                    xxhash: crate::hash::compute_xxhash(&definition),
                     content: definition,
                 })
                 .collect();
@@ -1362,7 +1362,7 @@ impl DatabaseManager {
             let content_items: Vec<crate::database::content::ContentInfo> = unique_content
                 .into_iter()
                 .map(|content| crate::database::content::ContentInfo {
-                    blake3_hash: crate::hash::compute_blake3_hash(&content),
+                    xxhash: crate::hash::compute_xxhash(&content),
                     content,
                 })
                 .collect();
@@ -2644,7 +2644,7 @@ impl DatabaseManager {
 
         let where_clause = format!("regexp_match(content, '{escaped_pattern}')");
 
-        // Collect matching blake3 hashes from all content shards (content_0 through content_15)
+        // Collect matching xxHash3 hashes from all content shards (content_0 through content_15)
         let mut matching_hashes: Vec<String> = Vec::new();
 
         // Query all 16 content shard tables
@@ -2661,14 +2661,14 @@ impl DatabaseManager {
 
             // Collect matching hashes from this shard
             for batch in &content_results {
-                let blake3_hash_array = batch
+                let xxhash_array = batch
                     .column(0)
                     .as_any()
                     .downcast_ref::<StringArray>()
                     .unwrap();
 
                 for i in 0..batch.num_rows() {
-                    matching_hashes.push(blake3_hash_array.value(i).to_string());
+                    matching_hashes.push(xxhash_array.value(i).to_string());
                 }
             }
         }
@@ -3161,7 +3161,7 @@ impl DatabaseManager {
 
     // Content operations for deduplication
 
-    /// Store content and return the blake3 hash
+    /// Store content and return the xxHash3 hash (stored in xxhash field for compatibility)
     pub async fn store_content(&self, content: &str) -> Result<String> {
         self.content_store.store_content(content).await
     }
@@ -3173,14 +3173,14 @@ impl DatabaseManager {
             .await
     }
 
-    /// Get content by blake3 hash
-    pub async fn get_content(&self, blake3_hash: &str) -> Result<Option<String>> {
-        self.content_store.get_content(blake3_hash).await
+    /// Get content by xxHash3 hash (xxhash parameter name kept for compatibility)
+    pub async fn get_content(&self, xxhash: &str) -> Result<Option<String>> {
+        self.content_store.get_content(xxhash).await
     }
 
-    /// Get content by blake3 hash hex string
-    pub async fn get_content_by_hex(&self, blake3_hash_hex: &str) -> Result<Option<String>> {
-        self.content_store.get_content_by_hex(blake3_hash_hex).await
+    /// Get content by xxHash3 hash hex string (xxhash parameter name kept for compatibility)
+    pub async fn get_content_by_hex(&self, xxhash_hex: &str) -> Result<Option<String>> {
+        self.content_store.get_content_by_hex(xxhash_hex).await
     }
 
     /// Bulk fetch content for multiple hashes - optimized for dump operations
@@ -3189,8 +3189,8 @@ impl DatabaseManager {
     }
 
     /// Check if content exists by hash
-    pub async fn content_exists(&self, blake3_hash: &str) -> Result<bool> {
-        self.content_store.content_exists(blake3_hash).await
+    pub async fn content_exists(&self, xxhash: &str) -> Result<bool> {
+        self.content_store.content_exists(xxhash).await
     }
 
     /// Insert a batch of content items

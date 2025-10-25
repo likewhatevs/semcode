@@ -16,10 +16,12 @@ pub fn compute_content_hash(content: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Compute blake3 hash of content for deduplication
-/// Blake3 is faster than SHA-1 and provides better collision resistance for content deduplication
-pub fn compute_blake3_hash(content: &str) -> String {
-    hex::encode(blake3::hash(content.as_bytes()).as_bytes())
+/// Compute xxHash3 hash of content for deduplication
+/// xxHash3 is faster than Blake3 and provides excellent collision resistance for content deduplication
+pub fn compute_xxhash(content: &str) -> String {
+    use xxhash_rust::xxh3::xxh3_128;
+    let hash = xxh3_128(content.as_bytes());
+    format!("{:032x}", hash)
 }
 
 // Conversion functions removed - we now work directly with hex strings
